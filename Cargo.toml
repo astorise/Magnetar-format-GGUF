@@ -1,3 +1,5 @@
+[workspace]
+
 [package]
 name = "magnetar-format-gguf"
 version = "0.1.0"
