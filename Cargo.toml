@@ -6,3 +6,13 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+# Path dependency, not a published crate: this crate is only buildable from
+# within a checkout of the parent Magnetar repository, with this submodule
+# checked out at `formats/gguf` (matching CI's `submodules: recursive`
+# checkout and the same pattern used by `providers/cpu`/`formats/safetensors`).
+# Default features stay on: `magnetar-runtime` is fail-closed at compile
+# time unless one of `wasmtime-component-engine` (the default) or
+# `non-strict-fixture-fallback` is enabled, even though this crate only
+# uses the generic Model Artifact types (`ModelTensorMetadata`, `ModelDType`,
+# `ModelQuantization`, `ModelQuantizationFormat`).
+magnetar-runtime = { path = "../../magnetar-runtime" }
