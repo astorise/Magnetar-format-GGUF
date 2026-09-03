@@ -10,9 +10,11 @@ edition = "2024"
 # within a checkout of the parent Magnetar repository, with this submodule
 # checked out at `formats/gguf` (matching CI's `submodules: recursive`
 # checkout and the same pattern used by `providers/cpu`/`formats/safetensors`).
-# Default features stay on: `magnetar-runtime` is fail-closed at compile
-# time unless one of `wasmtime-component-engine` (the default) or
-# `non-strict-fixture-fallback` is enabled, even though this crate only
-# uses the generic Model Artifact types (`ModelTensorMetadata`, `ModelDType`,
-# `ModelQuantization`, `ModelQuantizationFormat`).
+# Default features stay on (wasmtime-component-engine), though this crate
+# only uses the generic Model Artifact types (`ModelTensorMetadata`,
+# `ModelDType`, `ModelQuantization`, `ModelQuantizationFormat`) --
+# `magnetar-runtime` compiles fine with any feature combination (task 12.6
+# removed its former compile-time fail-closed trap for a missing Component
+# engine; that now fails closed at runtime instead), but there is no reason
+# for this crate to opt out of the default strict engine.
 magnetar-runtime = { path = "../../magnetar-runtime" }
