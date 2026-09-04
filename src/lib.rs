@@ -50,7 +50,7 @@
 //! have actually been confirmed present in the file.
 
 use magnetar_runtime::model::{
-    ModelDType, ModelQuantization, ModelQuantizationFormat, ModelTensorMetadata,
+    ModelDType, ModelDigest, ModelQuantization, ModelQuantizationFormat, ModelTensorMetadata,
 };
 use std::collections::BTreeMap;
 use std::fmt;
@@ -599,6 +599,30 @@ pub fn parse(bytes: &[u8]) -> Result<GgufArtifact, GgufError> {
         }
 
         ranges.push((start, end, info.name.clone()));
+        // A real content digest, computed from this tensor's actual bytes
+        // in the file -- not a placeholder. Only for unquantized `F32`
+        // (`ggml_type == 0`): that is the one dtype `magnetar-runtime`'s
+        // `host_tensors_from_artifact_bytes` materializes into a
+        // `HostTensor` today (every quantized or otherwise non-`F32`
+        // dtype is rejected structurally at that boundary, needing
+        // dequantization this crate does not perform), and its on-disk
+        // byte layout -- raw, native-width, little-endian IEEE754 -- is
+        // already byte-identical to `HostTensor::content_bytes()`'s
+        // canonical little-endian representation, so hashing the raw file
+        // range here cannot mismatch what
+        // `WeightMaterializationTransaction::stage_weight` verifies
+        // later. Quantized dtypes stay `digest: None` -- permissive, not
+        // a regression, matching this field's own "absent means unknown"
+        // semantics; they cannot be materialized into a `HostTensor` at
+        // all today, so no digest of theirs could ever be checked anyway.
+        let digest = (layout.dtype == ModelDType::F32)
+            .then(|| {
+                let tensor_start = usize::try_from(start).ok()?;
+                let tensor_end = usize::try_from(end).ok()?;
+                bytes.get(tensor_start..tensor_end)
+            })
+            .flatten()
+            .map(ModelDigest::sha256);
         tensors.push(ModelTensorMetadata {
             name: info.name,
             shape: info.dimensions,
@@ -609,7 +633,7 @@ pub fn parse(bytes: &[u8]) -> Result<GgufArtifact, GgufError> {
             size_bytes: Some(byte_size),
             quantization: layout.quantization,
             expected_compute_dtype: None,
-            digest: None,
+            digest,
         });
     }
 

@@ -119,6 +119,62 @@ fn well_formed_file_parses_expected_tensors_and_metadata() {
     assert_eq!(embedding.size_bytes, Some(4 * 8 * 4));
 }
 
+/// `bind-materialized-weight-content-to-model-artifact-digests`: an F32
+/// tensor's `ModelTensorMetadata.digest` is a real content digest, not a
+/// placeholder -- it verifies against that exact tensor's real bytes as
+/// parsed from the file, and correctly rejects tampered bytes.
+#[test]
+fn f32_tensor_digest_verifies_against_its_real_bytes() {
+    let data: Vec<u8> = (0..16u8).collect();
+    let tensors = [TestTensor {
+        name: "weight",
+        dimensions: vec![4],
+        ggml_type: 0, // F32
+        data: data.clone(),
+    }];
+    let file = build_gguf(3, &[], &tensors, 32);
+
+    let artifact = parse(&file).expect("well-formed GGUF file parses");
+    let tensor = artifact
+        .tensors
+        .iter()
+        .find(|t| t.name == "weight")
+        .unwrap();
+    let digest = tensor
+        .digest
+        .as_ref()
+        .expect("an unquantized F32 tensor should have a computed content digest");
+
+    digest
+        .verify_bytes(&data)
+        .expect("digest verifies against the tensor's own real bytes");
+
+    let mut tampered = data;
+    tampered[0] ^= 0xFF;
+    assert!(
+        digest.verify_bytes(&tampered).is_err(),
+        "digest must reject tampered content"
+    );
+}
+
+/// Quantized tensors cannot be materialized into a `HostTensor` without
+/// dequantization this crate does not perform, so their content cannot be
+/// meaningfully digested here -- `digest: None` is correct, not an
+/// oversight.
+#[test]
+fn quantized_tensor_has_no_content_digest() {
+    let tensors = [TestTensor {
+        name: "t",
+        dimensions: vec![256],
+        ggml_type: 12, // Q4_K
+        data: vec![0u8; 144],
+    }];
+    let file = build_gguf(3, &[], &tensors, 32);
+
+    let artifact = parse(&file).expect("well-formed GGUF file parses");
+    assert!(artifact.tensors[0].digest.is_none());
+}
+
 #[test]
 fn every_supported_ggml_type_round_trips() {
     let cases: &[(u32, ModelDType, u64, Vec<u64>)] = &[
