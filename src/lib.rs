@@ -609,6 +609,7 @@ pub fn parse(bytes: &[u8]) -> Result<GgufArtifact, GgufError> {
             size_bytes: Some(byte_size),
             quantization: layout.quantization,
             expected_compute_dtype: None,
+            digest: None,
         });
     }
 
