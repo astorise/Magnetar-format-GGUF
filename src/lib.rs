@@ -81,6 +81,18 @@ const MAX_ARRAY_NESTING_DEPTH: u32 = 8;
 pub struct GgufArtifact {
     pub tensors: Vec<ModelTensorMetadata>,
     pub metadata: BTreeMap<String, GgufMetadataValue>,
+    /// Absolute byte offset (from the start of the file) where the
+    /// tensor data section begins, i.e. `align_up(end of tensor-info
+    /// section, general.alignment)`. Each `ModelTensorMetadata.offset_bytes`
+    /// is relative to *this* value, not to the start of the file --
+    /// matching the same "offset relative to the format's own data
+    /// section" convention `magnetar-format-safetensors` already uses.
+    /// A caller reading raw tensor bytes back out of the original file
+    /// needs this to compute the real absolute byte range; `parse` itself
+    /// already validates every tensor's absolute range during parsing,
+    /// so exposing this is the caller's only way to redo that seek
+    /// without re-deriving the alignment/header-walk logic independently.
+    pub tensor_data_start: u64,
 }
 
 /// A GGUF metadata value, generic over GGUF's own typed key-value encoding.
@@ -650,7 +662,11 @@ pub fn parse(bytes: &[u8]) -> Result<GgufArtifact, GgufError> {
     }
 
     tensors.sort_by(|a, b| a.name.cmp(&b.name));
-    Ok(GgufArtifact { tensors, metadata })
+    Ok(GgufArtifact {
+        tensors,
+        metadata,
+        tensor_data_start,
+    })
 }
 
 #[cfg(test)]

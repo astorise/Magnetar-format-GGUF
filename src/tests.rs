@@ -117,6 +117,20 @@ fn well_formed_file_parses_expected_tensors_and_metadata() {
     assert_eq!(embedding.shape, vec![4, 8]);
     assert_eq!(embedding.storage_dtype, ModelDType::F32);
     assert_eq!(embedding.size_bytes, Some(4 * 8 * 4));
+
+    // `tensor_data_start` plus a tensor's own (data-section-relative)
+    // `offset_bytes` must land on that tensor's real bytes in the file --
+    // proven here by re-slicing the raw file at that absolute position
+    // and comparing against the tensor's own all-zero payload, not merely
+    // asserting the field is present.
+    let embedding_offset = embedding.offset_bytes.expect("offset_bytes is set");
+    let absolute_start = (artifact.tensor_data_start + embedding_offset) as usize;
+    let absolute_end = absolute_start + embedding.size_bytes.unwrap() as usize;
+    assert_eq!(
+        &file[absolute_start..absolute_end],
+        vec![0u8; 4 * 8 * 4].as_slice(),
+        "tensor_data_start + offset_bytes must address token_embedding's real bytes in the file"
+    );
 }
 
 /// `bind-materialized-weight-content-to-model-artifact-digests`: an F32
