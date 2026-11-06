@@ -461,3 +461,34 @@ fn malformed_input_corpus_never_panics() {
     }
     assert!(checked > 0, "corpus directory must not be empty");
 }
+
+#[test]
+fn parse_prefix_reads_the_header_and_checks_ranges_against_the_full_length() {
+    let tensors = [TestTensor {
+        name: "weight",
+        dimensions: vec![4],
+        ggml_type: 0, // F32
+        data: (0..16u8).collect(),
+    }];
+    let file = build_gguf(3, &[kv_uint32("general.alignment", 32)], &tensors, 32);
+    let full = parse(&file).unwrap();
+    assert!(full.tensors[0].digest.is_some());
+    let header_end = full.tensor_data_start as usize;
+    let prefix = parse_prefix(&file[..header_end], file.len() as u64).unwrap();
+    assert_eq!(prefix.metadata, full.metadata);
+    assert_eq!(prefix.tensors.len(), full.tensors.len());
+    for (from_prefix, from_full) in prefix.tensors.iter().zip(&full.tensors) {
+        assert_eq!(from_prefix.shape, from_full.shape);
+        assert_eq!(from_prefix.size_bytes, from_full.size_bytes);
+        // The data lies past the prefix: its digest is unknown.
+        assert!(from_prefix.digest.is_none());
+    }
+    assert!(matches!(
+        parse_prefix(&file[..header_end], header_end as u64),
+        Err(GgufError::ByteRangeOutOfBounds { .. })
+    ));
+    assert!(matches!(
+        parse_prefix(&file[..header_end / 2], file.len() as u64),
+        Err(GgufError::UnexpectedEof { .. })
+    ));
+}

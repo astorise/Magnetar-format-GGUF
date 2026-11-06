@@ -479,6 +479,18 @@ fn align_up(position: u64, alignment: u64) -> Result<u64, GgufError> {
 /// Parses a complete GGUF file already held in memory. See the module
 /// documentation for the format and safety discipline.
 pub fn parse(bytes: &[u8]) -> Result<GgufArtifact, GgufError> {
+    parse_prefix(bytes, bytes.len() as u64)
+}
+
+/// Parses a GGUF file from a `prefix` of its bytes that holds at least its
+/// whole header (key-value metadata and tensor infos), given the full
+/// file's `file_length`: a multi-gigabyte checkpoint is never read whole
+/// to learn its layout. Every tensor range is still checked against
+/// `file_length`. An unquantized `F32` tensor's content digest is computed
+/// only when its bytes lie inside `prefix`, else left unknown (`None`).
+/// A prefix that ends inside the header fails with
+/// [`GgufError::UnexpectedEof`]: read a longer one.
+pub fn parse_prefix(bytes: &[u8], file_length: u64) -> Result<GgufArtifact, GgufError> {
     let mut cursor = Cursor::new(bytes);
 
     let magic = cursor.read_u32_le()?;
@@ -546,7 +558,6 @@ pub fn parse(bytes: &[u8]) -> Result<GgufArtifact, GgufError> {
     }
 
     let tensor_data_start = align_up(cursor.position, alignment)?;
-    let file_length = bytes.len() as u64;
 
     let mut tensors = Vec::with_capacity(tensor_infos.len());
     let mut ranges: Vec<(u64, u64, String)> = Vec::with_capacity(tensor_infos.len());
