@@ -456,6 +456,12 @@ fn dtype_layout_for_ggml_type(ggml_type: u32) -> Option<DTypeLayout> {
             256,
             176,
         )),
+        14 => Some(quantized(
+            ModelDType::Q6K,
+            ModelQuantizationFormat::GgufQ6K,
+            256,
+            210,
+        )),
         24 => Some(unquantized(ModelDType::I8, 1)),
         25 => Some(unquantized(ModelDType::I16, 2)),
         26 => Some(unquantized(ModelDType::I32, 4)),
