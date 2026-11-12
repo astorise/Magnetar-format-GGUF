@@ -444,6 +444,18 @@ fn dtype_layout_for_ggml_type(ggml_type: u32) -> Option<DTypeLayout> {
             32,
             34,
         )),
+        10 => Some(quantized(
+            ModelDType::Q2K,
+            ModelQuantizationFormat::GgufQ2K,
+            256,
+            84,
+        )),
+        11 => Some(quantized(
+            ModelDType::Q3K,
+            ModelQuantizationFormat::GgufQ3K,
+            256,
+            110,
+        )),
         12 => Some(quantized(
             ModelDType::Q4K,
             ModelQuantizationFormat::GgufQ4K,
@@ -455,6 +467,54 @@ fn dtype_layout_for_ggml_type(ggml_type: u32) -> Option<DTypeLayout> {
             ModelQuantizationFormat::GgufQ5K,
             256,
             176,
+        )),
+        14 => Some(quantized(
+            ModelDType::Q6K,
+            ModelQuantizationFormat::GgufQ6K,
+            256,
+            210,
+        )),
+        16 => Some(quantized(
+            ModelDType::Iq2Xxs,
+            ModelQuantizationFormat::GgufIq2Xxs,
+            256,
+            66,
+        )),
+        17 => Some(quantized(
+            ModelDType::Iq2Xs,
+            ModelQuantizationFormat::GgufIq2Xs,
+            256,
+            74,
+        )),
+        18 => Some(quantized(
+            ModelDType::Iq3Xxs,
+            ModelQuantizationFormat::GgufIq3Xxs,
+            256,
+            98,
+        )),
+        20 => Some(quantized(
+            ModelDType::Iq4Nl,
+            ModelQuantizationFormat::GgufIq4Nl,
+            32,
+            18,
+        )),
+        21 => Some(quantized(
+            ModelDType::Iq3S,
+            ModelQuantizationFormat::GgufIq3S,
+            256,
+            110,
+        )),
+        22 => Some(quantized(
+            ModelDType::Iq2S,
+            ModelQuantizationFormat::GgufIq2S,
+            256,
+            82,
+        )),
+        23 => Some(quantized(
+            ModelDType::Iq4Xs,
+            ModelQuantizationFormat::GgufIq4Xs,
+            256,
+            136,
         )),
         24 => Some(unquantized(ModelDType::I8, 1)),
         25 => Some(unquantized(ModelDType::I16, 2)),
@@ -479,6 +539,18 @@ fn align_up(position: u64, alignment: u64) -> Result<u64, GgufError> {
 /// Parses a complete GGUF file already held in memory. See the module
 /// documentation for the format and safety discipline.
 pub fn parse(bytes: &[u8]) -> Result<GgufArtifact, GgufError> {
+    parse_prefix(bytes, bytes.len() as u64)
+}
+
+/// Parses a GGUF file from a `prefix` of its bytes that holds at least its
+/// whole header (key-value metadata and tensor infos), given the full
+/// file's `file_length`: a multi-gigabyte checkpoint is never read whole
+/// to learn its layout. Every tensor range is still checked against
+/// `file_length`. An unquantized `F32` tensor's content digest is computed
+/// only when its bytes lie inside `prefix`, else left unknown (`None`).
+/// A prefix that ends inside the header fails with
+/// [`GgufError::UnexpectedEof`]: read a longer one.
+pub fn parse_prefix(bytes: &[u8], file_length: u64) -> Result<GgufArtifact, GgufError> {
     let mut cursor = Cursor::new(bytes);
 
     let magic = cursor.read_u32_le()?;
@@ -546,7 +618,6 @@ pub fn parse(bytes: &[u8]) -> Result<GgufArtifact, GgufError> {
     }
 
     let tensor_data_start = align_up(cursor.position, alignment)?;
-    let file_length = bytes.len() as u64;
 
     let mut tensors = Vec::with_capacity(tensor_infos.len());
     let mut ranges: Vec<(u64, u64, String)> = Vec::with_capacity(tensor_infos.len());
