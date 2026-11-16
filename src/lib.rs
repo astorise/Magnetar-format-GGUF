@@ -438,6 +438,12 @@ fn dtype_layout_for_ggml_type(ggml_type: u32) -> Option<DTypeLayout> {
     match ggml_type {
         0 => Some(unquantized(ModelDType::F32, 4)),
         1 => Some(unquantized(ModelDType::F16, 2)),
+        2 => Some(quantized(
+            ModelDType::Q4,
+            ModelQuantizationFormat::GgufQ4,
+            32,
+            18,
+        )),
         8 => Some(quantized(
             ModelDType::Q8,
             ModelQuantizationFormat::GgufQ8,
