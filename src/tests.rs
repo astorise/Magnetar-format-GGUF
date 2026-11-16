@@ -201,6 +201,7 @@ fn every_supported_ggml_type_round_trips() {
         (28, ModelDType::F64, 32, vec![4]),
         (30, ModelDType::Bf16, 8, vec![4]),
         // Quantized: element count must be a multiple of the block size.
+        (2, ModelDType::Q4, 18, vec![32]),
         (8, ModelDType::Q8, 34, vec![32]),
         (12, ModelDType::Q4K, 144, vec![256]),
         (13, ModelDType::Q5K, 176, vec![256]),
@@ -241,17 +242,17 @@ fn quantized_types_carry_quantization_metadata() {
 
 #[test]
 fn unsupported_ggml_type_is_rejected_structurally() {
-    // ggml_type 2 = Q4_0, outside this crate's supported subset.
+    // ggml_type 3 = Q4_1, outside this crate's supported subset.
     let tensors = [TestTensor {
         name: "t",
         dimensions: vec![32],
-        ggml_type: 2,
-        data: vec![0u8; 18],
+        ggml_type: 3,
+        data: vec![0u8; 20],
     }];
     let file = build_gguf(3, &[], &tensors, 32);
     assert!(matches!(
         parse(&file),
-        Err(GgufError::UnsupportedGgmlType { ggml_type: 2, .. })
+        Err(GgufError::UnsupportedGgmlType { ggml_type: 3, .. })
     ));
 }
 
